@@ -1,0 +1,47 @@
+trigger:
+  - none
+
+pool:
+  vmImage: ubuntu-20.04
+
+variables:
+  buildConfiguration: "Release"
+  slnPath: "BackendServices/Chad.eCommerce.sln"
+
+steps:
+  - task: DockerCompose@0
+    displayName: "Compose MSSQL Docker Container"
+    inputs:
+      containerregistrytype: "Container Registry"
+      dockerComposeFile: "$(System.DefaultWorkingDirectory)/Pipelines/ci-compose.yml"
+      dockerComposeCommand: "up -d"
+
+  - script: dotnet build $(slnPath) --configuration $(buildConfiguration)
+    displayName: 'dotnet build $(slnPath) $(buildConfiguration)'
+    
+  - script: docker exec -i mssql /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P '<YOUR PASSWORD' -Q 'create database ChadeCommerce'
+    displayName: "Create Chad.eCommerce database"
+
+  - task: PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Write your PowerShell commands here.
+        
+        Start-Sleep -s 5
+        
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: run
+      arguments: '"$(ConnectionStrings:eCommerceDatabase)" --configuration $(buildConfiguration)'
+      workingDirectory: "$(System.DefaultWorkingDirectory)/BackendServices/Chad.eCommerce.DbUp"
+    displayName: "Run DbUp"
+
+  - script: dotnet test $(slnPath) --configuration $(buildConfiguration) --logger trx --collect "Code coverage"
+    displayName: "dotnet test $(slnPath) $(buildConfiguration)"
+
+  - task: PublishTestResults@2
+    condition: succeededOrFailed()
+    inputs:
+      testRunner: VSTest
+      testResultsFiles: "**/*.trx"

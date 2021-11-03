@@ -1,0 +1,42 @@
+trigger:
+  branches:
+    include: 
+    - develop
+  paths:
+    include: 
+    - BackendServices
+
+pool:
+  vmImage: 'windows-latest'
+
+steps:
+  - task: UseDotNet@2
+    inputs:
+      version: "3.1.x"
+      packageType: sdk
+    displayName: "Use .NET 3.1.x"
+
+  - task: DotNetCoreCLI@2
+    displayName: "Publish DbUp"
+    inputs:
+      command: publish
+      publishWebProjects: false
+      workingDirectory: "$(System.DefaultWorkingDirectory)/BackendServices/Chad.eCommerce.DbUp"
+      arguments: "--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)/DbUp/Application"
+      zipAfterPublish: false
+
+  - task: DotNetCoreCLI@2
+    displayName: "Publish Functions"
+    inputs:
+      command: publish
+      publishWebProjects: false
+      workingDirectory: "$(System.DefaultWorkingDirectory)/BackendServices/Chad.eCommerce.Client.Functions"
+      arguments: "--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)/Backend/Application"
+      zipAfterPublish: false
+
+  - task: PublishBuildArtifacts@1
+    displayName: "Publish .NET Artifacts"
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+      ArtifactName: "qa_dotnet_drop"
+      publishLocation: "Container"
